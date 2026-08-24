@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="panda">
+
+    <!-- 1. Include our newly cleaned Panda URDF -->
+    <xacro:include filename="$(find my_panda_project)/urdf/clean_panda.urdf" />
+
+    <!-- 2. Anchor the robot base to the Gazebo world so it never falls down -->
+    <link name="world"/>
+    <joint name="virtual_joint" type="fixed">
+        <parent link="world"/>
+        <child link="panda_link0"/>
+        <origin xyz="0.05 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- 3. Define the Gazebo ros2_control hardware interface -->
+    <ros2_control name="GazeboSimSystem" type="system">
+        <hardware>
+            <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </hardware>
+        
+        <!-- Macro to apply interfaces and specific initial positions to all joints -->
+        <xacro:macro name="configure_joint" params="joint_name init_pos">
+            <joint name="${joint_name}">
+                <command_interface name="position"/>
+                <state_interface name="position">
+                    <param name="initial_value">${init_pos}</param>
+                </state_interface>
+                <state_interface name="velocity"/>
+            </joint>
+        </xacro:macro>
+
+        <!-- Inject the safe "Ready/Home" pose joint angles -->
+        <xacro:configure_joint joint_name="panda_joint1" init_pos="0.0" />
+        <xacro:configure_joint joint_name="panda_joint2" init_pos="-0.785" />
+        <xacro:configure_joint joint_name="panda_joint3" init_pos="0.0" />
+        <xacro:configure_joint joint_name="panda_joint4" init_pos="-2.356" />
+        <xacro:configure_joint joint_name="panda_joint5" init_pos="0.0" />
+        <xacro:configure_joint joint_name="panda_joint6" init_pos="1.57" />
+        <xacro:configure_joint joint_name="panda_joint7" init_pos="0.785" />
+        
+        <!-- The active finger gets the standard macro (with command interface) -->
+        <xacro:configure_joint joint_name="panda_finger_joint1" init_pos="0.04" />
+        
+        <!-- The mimic finger ONLY gets state interfaces -->
+        <joint name="panda_finger_joint2">
+            <state_interface name="position">
+                <param name="initial_value">0.04</param>
+            </state_interface>
+            <state_interface name="velocity"/>
+        </joint>
+
+    </ros2_control>
+
+    <!-- 4. Attach the Gazebo ROS 2 Control Plugin -->
+    <gazebo>
+        <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+            <parameters>$(find my_panda_project)/config/ros2_controllers.yaml</parameters>
+        </plugin>
+    </gazebo>
+
+</robot>

@@ -1,0 +1,158 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+    <world name="workspace">
+        <!-- Core Plugins -->
+        <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+        <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+        <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+        <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+            <render_engine>ogre2</render_engine>
+        </plugin>
+
+        <!-- Fixes the black void -->
+        <scene>
+            <ambient>1.0 1.0 1.0</ambient>
+            <background>0.8 0.8 0.8</background>
+        </scene>
+
+        <light type="directional" name="sun">
+            <cast_shadows>true</cast_shadows>
+            <pose>0 0 10 0 0 0</pose>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <direction>-0.5 0.1 -0.9</direction>
+        </light>
+        
+        <model name="ground_plane">
+            <static>true</static>
+            <link name="link">
+                <collision name="collision"><geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry></collision>
+                <visual name="visual">
+                    <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+                    <material>
+                        <ambient>0.8 0.8 0.8 1</ambient>
+                        <diffuse>0.8 0.8 0.8 1</diffuse>
+                    </material>
+                </visual>
+            </link>
+        </model>
+
+        <!-- Workspace Table (Now with Diffuse color!) -->
+        <model name="table">
+            <static>true</static>
+            <pose>0.6 0 0.2 0 0 0</pose>
+            <link name="link">
+                <visual name="visual">
+                    <geometry><box><size>0.5 1.0 0.4</size></box></geometry>
+                    <material>
+                        <ambient>0.4 0.3 0.2 1</ambient>
+                        <diffuse>0.4 0.3 0.2 1</diffuse>
+                    </material>
+                </visual>
+                <collision name="collision"><geometry><box><size>0.5 1.0 0.4</size></box></geometry></collision>
+            </link>
+        </model>
+
+        <!-- WORKSPACE CAMERA (Native to SDF) -->
+        <model name="camera_model">
+            <static>true</static>
+             <!-- Inside your camera model -->
+            <pose>0.8 0.0 1.5 0 1.5708 0</pose>
+            <link name="camera_link">
+                <sensor name="workspace_camera" type="camera">
+                    <update_rate>30.0</update_rate>
+                    <always_on>true</always_on>
+                    <visualize>true</visualize>
+                    <topic>/workspace_camera/image_raw</topic>
+                    <camera>
+                        <horizontal_fov>1.3962634</horizontal_fov>
+                        <image>
+                            <width>640</width>
+                            <height>480</height>
+                            <format>R8G8B8</format>
+                        </image>
+                        <clip>
+                            <near>0.02</near>
+                            <far>10.0</far>
+                        </clip>
+                    </camera>
+                </sensor>
+            </link>
+        </model>
+
+        <!-- Target Object: Red Cube -->
+        <model name="red_cube">
+            <pose>0.6 0.0 0.45 0 0 0</pose>
+            <link name="link">
+                <inertial>
+                    <mass>0.05</mass>
+                    <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+                </inertial>
+                <visual name="visual">
+                    <geometry><box><size>0.05 0.05 0.05</size></box></geometry>
+                    <material>
+                        <ambient>1 0 0 1</ambient>
+                        <diffuse>1 0 0 1</diffuse>
+                    </material>
+                </visual>
+                <collision name="collision">
+                    <geometry><box><size>0.05 0.05 0.05</size></box></geometry>
+                </collision>
+            </link>
+        </model>
+
+        <!-- Secondary Drop-off Table (Positioned to the left of the robot) -->
+        <model name="drop_table">
+            <static>true</static>
+            <pose>0.0 0.7 0.2 0 0 0</pose>
+            <link name="link">
+                <visual name="visual">
+                    <geometry><box><size>0.8 0.5 0.4</size></box></geometry>
+                    <material>
+                        <ambient>0.3 0.3 0.3 1</ambient>
+                        <diffuse>0.3 0.3 0.3 1</diffuse>
+                    </material>
+                </visual>
+                <collision name="collision"><geometry><box><size>0.8 0.5 0.4</size></box></geometry></collision>
+            </link>
+        </model>
+
+        <!-- Target Object: Blue Cube -->
+        <model name="blue_cube">
+            <pose>0.6 0.15 0.45 0 0 0</pose>
+            <link name="link">
+                <inertial>
+                    <mass>0.05</mass>
+                    <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+                </inertial>
+                <visual name="visual">
+                    <geometry><box><size>0.05 0.05 0.05</size></box></geometry>
+                    <material>
+                        <ambient>0 0 1 1</ambient>
+                        <diffuse>0 0 1 1</diffuse>
+                    </material>
+                </visual>
+                <collision name="collision"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>
+            </link>
+        </model>
+
+        <!-- Target Object: Green Cube -->
+        <model name="green_cube">
+            <pose>0.6 -0.15 0.45 0 0 0</pose>
+            <link name="link">
+                <inertial>
+                    <mass>0.05</mass>
+                    <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+                </inertial>
+                <visual name="visual">
+                    <geometry><box><size>0.05 0.05 0.05</size></box></geometry>
+                    <material>
+                        <ambient>0 1 0 1</ambient>
+                        <diffuse>0 1 0 1</diffuse>
+                    </material>
+                </visual>
+                <collision name="collision"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>
+            </link>
+        </model>
+
+    </world>
+</sdf>
