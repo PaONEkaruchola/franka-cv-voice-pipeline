@@ -5,6 +5,10 @@ This repository contains a full-stack ROS 2 manipulation pipeline for the Franka
 ## 🎥 Project Overview
 The system listens for voice commands (e.g., *"Pick up the green block"*). Once an intent is recognized, a top-down RGB camera pipeline calculates the absolute 3D world coordinates of the target object using 2D-to-3D mathematical projection. A custom C++ MoveIt 2 state machine then takes over, dynamically routing the robot to hover, grasp, and sort the object into a designated drop-off zone based on its color.
 
+## Demo video
+
+[![Watch the demo](https://www.youtube.com/watch?v=6uoRUwFMX70/hqdefault.jpg)](https://www.youtube.com/watch?v=6uoRUwFMX70)
+
 ### Key Features
 * **Semantic Target Acquisition:** Uses Regex-based natural language parsing to extract actionable commands and target attributes.
 * **Markerless 3D Vision:** An OpenCV Python pipeline that dynamically computes absolute `[X, Y, Z]` world coordinates from a 2D camera feed without relying on depth sensors or point clouds.
