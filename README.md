@@ -102,6 +102,7 @@ This repository holds **the pipeline and simulation integration I wrote**, not a
 * **🦾 Dynamic MoveIt 2 State Machine** — A C++ node driving a six-stage Hover → Descend → Grasp → Lift → Translate → Release sequence, with IK solving, planning, and orthogonal grasp alignment handled through `MoveGroupInterface`. Every stage is plan-checked, and a planning failure aborts the sequence cleanly instead of executing a partial motion.
 * **🔀 Robust, Non-Blocking Callback Design** — Dedicated `MutuallyExclusive` callback groups on a `MultiThreadedExecutor` keep perception updates flowing *while* the arm is mid-motion, so Gazebo interaction never stalls or deadlocks ([details](#-robust-callback--concurrency-design)).
 * **⏱️ Simulation-Time Synchronized Execution** — Every timed wait, trajectory stamp, and gripper actuation is pinned to Gazebo's simulated clock rather than the wall clock, eliminating drift between planned and physically executed motion ([details](#️-simulation-time-synchronization)).
+* **🧱 Single-Source Robot Description** — One URDF/Xacro drives Gazebo, TF, and MoveIt alike; `ros_gz_sim` converts it to SDF at spawn time, and preset joint angles place the arm in MoveIt's `ready` pose from the very first physics step, so the model is statically stable immediately and never needs a settling period ([details](#robot-description-urdf--sdf-conversion--spawn-pose)).
 * **🎯 Hardware-Accurate Actuation** — Compensates for the physical 45° wrist offset of the Franka Panda flange for a perfectly orthogonal, parallel-jaw grasp, and commands the `panda_hand_controller` directly for near-instant gripper response.
 * **🌈 Color-Aware Sorting Logic** — The kinematics node routes each block to its own drop-off coordinate (left / center / right) based on the color reported by the vision pipeline, resolved live at the moment the sorting stage is reached.
 
@@ -130,6 +131,28 @@ flowchart LR
 1. **Vision & Perception** (`vision_pipeline.py`) — Subscribes to the bridged Gazebo camera topic, applies HSV masking and contour detection, projects 2D pixels into 3D world coordinates using known camera intrinsics and workspace constraints, and publishes the target `PoseStamped` and color string.
 2. **Kinematics & Control** (`panda_kinematics.cpp`) — Subscribes to the target pose and color topics, plans trajectories with `MoveGroupInterface`, actuates `panda_hand_controller` via `JointTrajectory` messages, and executes the six-step pick-and-place state machine.
 3. **Simulation & TF2 Framework** — A URDF/Xacro model of the Panda spawned into a custom Gazebo Harmonic world, with `gz_ros2_control` presenting the arm and gripper as `ros2_control` hardware, and a bridged `/clock` topic preventing trajectory execution drift between MoveIt's planner and Gazebo's physics engine.
+
+### Robot Description: URDF → SDF Conversion & Spawn Pose
+
+Gazebo Harmonic simulates SDF, but the robot is authored and maintained as URDF/Xacro — there is no hand-written `.sdf` copy of the arm to keep in sync. The conversion is handled by the launch file itself:
+
+1. `xacro` expands `urdf/panda_sim.urdf.xacro` into a complete URDF at launch time.
+2. `robot_state_publisher` publishes that URDF on `/robot_description` and serves the TF tree derived from it.
+3. `ros_gz_sim`'s `create` node reads `/robot_description` and **converts the URDF to SDF internally** as it spawns the model into the running world.
+
+A single URDF therefore stays the one source of truth for Gazebo, TF, and MoveIt at once — no duplicated `.sdf` model to drift out of step with the planning description.
+
+#### Deterministic spawn pose
+
+Rather than letting the model drop into the world at all-zero joint angles, the `create` call presets every arm joint with `-J` arguments:
+
+| Joint | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| Angle (rad) | `0.0` | `-0.785` | `0.0` | `-2.356` | `0.0` | `1.57` | `0.785` |
+
+These are the Panda's canonical **`ready`** joint values as defined in the upstream MoveIt configuration, so Gazebo's spawn state and MoveIt's notion of home agree exactly — there is no pose jump or corrective replan the first time the planner takes control.
+
+The practical payoff is stability: because the arm materializes already in a valid, well-conditioned configuration and `panda_arm_controller` holds position from the moment it activates, the model is statically stable from `t = 0`. It does not sag, collapse under gravity, or self-collide while the rest of the stack comes up, which means you can bring up the remaining terminals at your own pace without racing the simulation.
 
 ---
 
@@ -320,25 +343,34 @@ cd ~/panda_manipulation_ws
 source install/setup.bash
 ```
 
-### ⚠️ Why the start order matters
+### 🔢 Start order
 
-The pipeline is a one-way chain — **voice → vision → kinematics → controllers → Gazebo** — and every topic uses the default `VOLATILE` durability QoS. A message published before its subscriber exists is dropped and never replayed.
+The pipeline is a one-way chain — **voice → vision → kinematics → controllers → Gazebo** — and every topic uses the default `VOLATILE` durability QoS, so a message published before its subscriber exists is dropped and never replayed.
 
-Nodes are therefore started in **reverse dependency order: consumers before producers, with the voice trigger last.** Starting the voice node early means the first command you speak resolves to a `/target_pose` that nothing is listening for, and the arm silently never moves — the single most common way to think this pipeline is broken when it isn't.
+There is no time pressure during bring-up. Thanks to the [deterministic spawn pose](#deterministic-spawn-pose), the Panda comes up already in its `ready` configuration with `panda_arm_controller` holding it there, so the robot simply waits — stable and upright — for as long as the rest of the stack takes to start. Nothing droops or falls over if MoveIt is not running yet, which makes most of the sequence a matter of convenience rather than necessity.
 
-| Order | Terminal | Role in the chain |
-|:--:|---|---|
-| 1 | Gazebo simulation & controllers | Physics, robot, `ros2_control` hardware |
-| 2 | `ros_gz` bridges | Publishes `/clock` — everything downstream needs it |
-| 3 | MoveIt 2 + kinematics state machine | **Consumer** of `/target_pose` |
-| 4 | Vision pipeline | Consumer of the camera, **producer** of `/target_pose` |
-| 5 | Voice node | The **trigger** — always last |
+Only two constraints are strict:
+
+* **Bridges before the vision pipeline.** `/workspace_camera/image_raw` does not exist in the ROS 2 graph until `parameter_bridge` is running, and every node with `use_sim_time: true` idles at `t = 0` until `/clock` starts flowing.
+* **The voice node last.** It is the only node that injects work into the chain. Start it before `panda_kinematics` has subscribed and the first command you speak produces a `/target_pose` with no listener: the transcript is recognized, the vision window draws its bounding box, and the arm never moves. Nothing errors out, which makes this the easiest way to conclude the pipeline is broken when it is fine.
+
+The order below satisfies both by starting each consumer ahead of its producer.
+
+| Order | Terminal | Role in the chain | Strict? |
+|:--:|---|---|:--:|
+| 1 | Gazebo simulation & controllers | Physics, robot, `ros2_control` hardware | Yes — first |
+| 2 | `ros_gz` bridges | Publishes `/clock` and the camera feed | Yes |
+| 3 | MoveIt 2 + kinematics state machine | **Consumer** of `/target_pose` | Flexible |
+| 4 | Vision pipeline | Consumer of the camera, **producer** of `/target_pose` | After 2 |
+| 5 | Voice node | The **trigger** | Yes — last |
+
+Terminal 3 is marked flexible because the arm holds its spawn pose regardless: bringing MoveIt up later works equally well, as long as it is subscribed before you speak.
 
 ---
 
 ### Terminal 1 — Launch the Simulation Environment
 
-Boots Gazebo Harmonic with the workspace world, publishes the robot description, spawns the Panda at its home pose, and loads the three controllers through `controller_manager`.
+Boots Gazebo Harmonic with the workspace world, expands the Xacro and publishes it on `/robot_description`, spawns the Panda (URDF converted to SDF on the fly) preset to its `ready` joint angles, and loads the three controllers through `controller_manager`.
 
 ```bash
 ros2 launch my_panda_project spawn_panda.launch.py
