@@ -29,11 +29,11 @@ A full-stack ROS 2 manipulation pipeline for the **Franka Emika Panda** arm that
 8. [Robust Callback & Concurrency Design](#-robust-callback--concurrency-design)
 9. [Simulation Time Synchronization](#️-simulation-time-synchronization)
 10. [Installation](#-installation)
-11. [Workspace Layout & Build](#-workspace-layout--build)
+11. [Workspace Layout & Build](#️-workspace-layout--build)
 12. [Detailed Execution Guide (Linux)](#-detailed-execution-guide-linux)
 13. [Issuing Voice Commands](#️-issuing-voice-commands)
 14. [Troubleshooting](#-troubleshooting)
-15. [Screenshots](#-screenshots)
+15. [Screenshots](#️-screenshots)
 16. [Development Roadmap](#️-development-roadmap)
 17. [Author](#-author)
 
