@@ -345,28 +345,28 @@ source install/setup.bash
 
 ### 🔢 Start order
 
-The pipeline is a one-way chain — **voice → vision → kinematics → controllers → Gazebo** — and every topic uses the default `VOLATILE` durability QoS, so a message published before its subscriber exists is dropped and never replayed.
+Start the five terminals **in the order below**. This is the verified bring-up sequence — tested end to end, and the order the planned single-command launch file will encode.
 
-There is no time pressure during bring-up. Thanks to the [deterministic spawn pose](#deterministic-spawn-pose), the Panda comes up already in its `ready` configuration with `panda_arm_controller` holding it there, so the robot simply waits — stable and upright — for as long as the rest of the stack takes to start. Nothing droops or falls over if MoveIt is not running yet, which makes most of the sequence a matter of convenience rather than necessity.
+| Order | Terminal | Command | Wait for |
+|:--:|---|---|---|
+| **1** | Simulation & controllers | `ros2 launch my_panda_project spawn_panda.launch.py` | Gazebo window open, all 3 controllers `active` |
+| **2** | `ros_gz` bridges | `ros2 run ros_gz_bridge parameter_bridge …` | `/clock` ticking, camera topic publishing |
+| **3** | MoveIt 2 + kinematics | `ros2 launch my_panda_project kinematics.launch.py` | `Pick & Place Node Ready. Awaiting voice target...` |
+| **4** | Vision pipeline | `ros2 run my_panda_project vision_pipeline.py` | OpenCV window showing the workspace |
+| **5** | Voice node | `ros2 run my_panda_project voice_node.py` | `Ready! Say a command...` |
 
-Only two constraints are strict:
+Each step has a visible confirmation in the **Wait for** column — let it appear before starting the next terminal, and the stack comes up cleanly every time.
 
-* **Bridges before the vision pipeline.** `/workspace_camera/image_raw` does not exist in the ROS 2 graph until `parameter_bridge` is running, and every node with `use_sim_time: true` idles at `t = 0` until `/clock` starts flowing.
-* **The voice node last.** It is the only node that injects work into the chain. Start it before `panda_kinematics` has subscribed and the first command you speak produces a `/target_pose` with no listener: the transcript is recognized, the vision window draws its bounding box, and the arm never moves. Nothing errors out, which makes this the easiest way to conclude the pipeline is broken when it is fine.
+#### Why this order
 
-The order below satisfies both by starting each consumer ahead of its producer.
+The pipeline is a one-way chain — **voice → vision → kinematics → controllers → Gazebo** — so it is brought up in reverse: each consumer is listening before the node that feeds it starts. Every topic uses the default `VOLATILE` durability QoS, which means a message published before its subscriber exists is dropped and never replayed. Two links in that chain are the ones that bite:
 
-| Order | Terminal | Role in the chain | Strict? |
-|:--:|---|---|:--:|
-| 1 | Gazebo simulation & controllers | Physics, robot, `ros2_control` hardware | Yes — first |
-| 2 | `ros_gz` bridges | Publishes `/clock` and the camera feed | Yes |
-| 3 | MoveIt 2 + kinematics state machine | **Consumer** of `/target_pose` | Flexible |
-| 4 | Vision pipeline | Consumer of the camera, **producer** of `/target_pose` | After 2 |
-| 5 | Voice node | The **trigger** | Yes — last |
+* **Bridges before the vision pipeline (2 → 4).** `/workspace_camera/image_raw` does not exist in the ROS 2 graph until `parameter_bridge` is running, and every node with `use_sim_time: true` idles at `t = 0` until `/clock` starts flowing.
+* **Kinematics before the voice node (3 → 5).** The voice node is the only node that injects work into the chain. Start it before `panda_kinematics` has subscribed and the first command you speak produces a `/target_pose` with no listener: the transcript is recognized, the vision window draws its bounding box, and the arm never moves. Nothing errors out, which makes this the easiest way to conclude the pipeline is broken when it is fine.
 
-Terminal 3 is marked flexible because the arm holds its spawn pose regardless: bringing MoveIt up later works equally well, as long as it is subscribed before you speak.
+There is no time pressure between the steps. Thanks to the [deterministic spawn pose](#deterministic-spawn-pose), the Panda comes up already in its `ready` configuration with `panda_arm_controller` holding it there, so the robot waits — stable and upright — for as long as you need to bring up the rest. Nothing droops or falls over while MoveIt is still starting, so you can take each step at your own pace and check its confirmation before moving on.
 
-> **Planned:** a single top-level `bringup.launch.py` that starts all five stages in this order automatically, using `RegisterEventHandler`/`OnProcessStart` and `TimerAction` to gate each stage on the previous one instead of relying on the operator's timing. The manual sequence above works today — the unified launch is about making the ordering guaranteed rather than conventional. Tracked in the [roadmap](#️-development-roadmap).
+> **Coming next:** a single top-level `bringup.launch.py` that runs this exact sequence from one command, using `RegisterEventHandler`/`OnProcessStart` and `TimerAction` to gate each stage on the previous one instead of relying on the operator's timing. Tracked in the [roadmap](#️-development-roadmap).
 
 ---
 
