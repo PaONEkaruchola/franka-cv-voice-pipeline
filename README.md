@@ -366,6 +366,8 @@ The order below satisfies both by starting each consumer ahead of its producer.
 
 Terminal 3 is marked flexible because the arm holds its spawn pose regardless: bringing MoveIt up later works equally well, as long as it is subscribed before you speak.
 
+> **Planned:** a single top-level `bringup.launch.py` that starts all five stages in this order automatically, using `RegisterEventHandler`/`OnProcessStart` and `TimerAction` to gate each stage on the previous one instead of relying on the operator's timing. The manual sequence above works today — the unified launch is about making the ordering guaranteed rather than conventional. Tracked in the [roadmap](#️-development-roadmap).
+
 ---
 
 ### Terminal 1 — Launch the Simulation Environment
@@ -518,10 +520,10 @@ This project is built in phases, each adding a layer of real robotics capability
 
 **Additional planned work**
 
+* [ ] **Unified `bringup.launch.py`** — start the whole stack from one command, sequencing simulation → bridges → MoveIt/kinematics → vision → voice with `RegisterEventHandler` and `TimerAction` so the [start order](#-start-order) is enforced by the launch system rather than by hand.
 * [ ] Flesh out `grasping_logic.cpp` into a standalone, reusable grasp-planning module.
 * [ ] Replace the cloud-dependent Google Speech backend with an offline recognizer for fully self-contained operation.
 * [ ] Add automated integration tests for the vision → kinematics coordinate pipeline.
-* [ ] Provide a single top-level launch file that brings up all five terminals' worth of nodes together.
 
 ---
 
